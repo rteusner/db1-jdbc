@@ -2,8 +2,10 @@ import entities.Actor;
 import entities.Movie;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -11,9 +13,7 @@ import java.util.Properties;
 
 public class ImdbSearch {
 
-	private static String  keyword;
-
-	public static void main(String[] args) throws SQLException {
+	public static void main(String[] args) {
 		try (Connection connection = openConnection()) {
 
 			String output = "";
@@ -36,7 +36,13 @@ public class ImdbSearch {
 		Properties props = new Properties();
 
 		//load a properties file from class path, inside static method
-		props.load(ImdbSearch.class.getClassLoader().getResourceAsStream("database.properties"));
+		try (InputStream in = ImdbSearch.class.getClassLoader()
+				.getResourceAsStream("database.properties")) {
+			if (in == null) {
+				throw new IOException("database.properties not found on classpath");
+			}
+			props.load(in);
+		}
 
 		String host = props.getProperty("host");
 		String port = props.getProperty("port");
@@ -44,34 +50,39 @@ public class ImdbSearch {
 		String username = props.getProperty("username");
 		String password = props.getProperty("password");
 
-		return new ConnectionConfig(username, password, host, Integer.valueOf(port), database);
+		return new ConnectionConfig(username, password, host, Integer.parseInt(port), database);
 
 	}
 
 	public static Connection openConnection() throws SQLException, IOException {
 
 		ConnectionConfig cc = getConnectionConfig();
-		return DriverManager.getConnection("jdbc:postgresql://" + cc.getHost() + ":"
-				+ cc.getPort() +"/" + cc.getDatabase(), cc.getUsername(), cc.getPassword());
+		return DriverManager.getConnection("jdbc:postgresql://" + cc.host() + ":"
+				+ cc.port() +"/" + cc.database(), cc.username(), cc.password());
 	}
 
 	private static String selectFirstMovies(Connection connection, int limit)
 			throws SQLException {
-		String output = "First " + limit + " MOVIES\n";
-		// execute statement for movies with keyword in title
-		ResultSet movies = connection.createStatement().executeQuery(
-				"SELECT * FROM tmovies ORDER BY startyear ASC LIMIT " + limit);
+		StringBuilder output = new StringBuilder("First " + limit + " MOVIES\n");
+		// fetch the earliest movies by start year
+		try (PreparedStatement stmt = connection.prepareStatement(
+				"SELECT tconst, \"primaryTitle\", \"isAdult\", \"startYear\", "
+				+ "\"runtimeMinutes\", genres FROM tmovies ORDER BY \"startYear\" ASC LIMIT ?")) {
+			stmt.setInt(1, limit);
 
-		while (movies.next()) {
-			// build output string
-			output += movies.getString("tconst") + ", "
-					+ movies.getString("primarytitle") + ", "
-					+ movies.getString("isadult") + ", "
-					+ movies.getString("startyear") + ", "
-					+ movies.getString("runtimeminutes") + ", "
-					+ movies.getString("genres") + "\n";
+			try (ResultSet movies = stmt.executeQuery()) {
+				while (movies.next()) {
+					// build output string
+					output.append(movies.getString("tconst")).append(", ")
+							.append(movies.getString("primaryTitle")).append(", ")
+							.append(movies.getString("isAdult")).append(", ")
+							.append(movies.getString("startYear")).append(", ")
+							.append(movies.getString("runtimeMinutes")).append(", ")
+							.append(movies.getString("genres")).append("\n");
+				}
+			}
 		}
-		return output;
+		return output.toString();
 	}
 
 	protected static List<Movie> findMovies(Connection connection, String keyword)
