@@ -65,24 +65,38 @@ public class ImdbSearch {
 			throws SQLException {
 		StringBuilder output = new StringBuilder("First " + limit + " MOVIES\n");
 		// fetch the earliest movies by start year
-		try (PreparedStatement stmt = connection.prepareStatement(
-				"SELECT tconst, \"primaryTitle\", \"isAdult\", \"startYear\", "
-				+ "\"runtimeMinutes\", genres FROM tmovies ORDER BY \"startYear\" ASC LIMIT ?")) {
-			stmt.setInt(1, limit);
+		ResultSet movies = connection.createStatement().executeQuery(
+				"SELECT * FROM tmovies ORDER BY startyear ASC LIMIT " + limit);
 
-			try (ResultSet movies = stmt.executeQuery()) {
-				while (movies.next()) {
-					// build output string
-					output.append(movies.getString("tconst")).append(", ")
-							.append(movies.getString("primaryTitle")).append(", ")
-							.append(movies.getString("isAdult")).append(", ")
-							.append(movies.getString("startYear")).append(", ")
-							.append(movies.getString("runtimeMinutes")).append(", ")
-							.append(movies.getString("genres")).append("\n");
-				}
-			}
+		while (movies.next()) {
+			// build output string
+			output.append(movies.getString("tconst")).append(", ")
+					.append(movies.getString("primarytitle")).append(", ")
+					.append(movies.getString("isadult")).append(", ")
+					.append(movies.getString("startyear")).append(", ")
+					.append(movies.getString("runtimeminutes")).append(", ")
+					.append(movies.getString("genres")).append("\n");
 		}
 		return output.toString();
+
+		/**
+		 * alternative with PreparedStatement
+		 *
+		 * ...
+		 * 		try (PreparedStatement stmt = connection.prepareStatement(
+		 * 				"SELECT tconst, \"primaryTitle\", \"isAdult\", \"startYear\", "
+		 * 				+ "\"runtimeMinutes\", genres FROM tmovies ORDER BY \"startYear\" ASC LIMIT ?")) {
+		 *
+		 * 			stmt.setInt(1, limit);
+		 * 			try (ResultSet movies = stmt.executeQuery()) {
+		 * 				while (movies.next()) {
+		 * 			...
+		 * 				}
+		 * 			}
+		 * 		...
+		 * 	}
+		 *
+		 */
 	}
 
 	protected static List<Movie> findMovies(Connection connection, String keyword)
